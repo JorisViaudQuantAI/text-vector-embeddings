@@ -5,7 +5,7 @@ import { IssueSimilaritySearchResult } from "../adapters/supabase/helpers/issues
 import { Context } from "../types/index";
 import { appendPluginUpdateComment, normalizeWhitespace, stripHtmlComments, stripPluginUpdateComments } from "../utils/markdown-comments";
 import { appendFootnoteRefsToFirstLine, insertFootnoteRefNearSentence } from "../utils/footnote-placement";
-import { stripDuplicateFootnotes } from "../utils/footnotes";
+import { buildDuplicateFootnoteRef, DUPLICATE_FOOTNOTE_DEF_REGEX, stripDuplicateFootnotes } from "../utils/footnotes";
 import { findEditDistance } from "../utils/string-similarity";
 
 export interface IssueGraphqlResponse {
@@ -193,18 +193,13 @@ async function handleSimilarIssuesComment(
   if (!issueBody) {
     return;
   }
-  // Find existing footnotes in the body
-  const footnoteRegex = /\[\^(\d+)\^\]/g;
-  const existingFootnotes = issueBody.match(footnoteRegex) || [];
-  const highestFootnoteIndex = existingFootnotes.length > 0 ? Math.max(...existingFootnotes.map((fn) => parseInt(fn.match(/\d+/)?.[0] ?? "0"))) : 0;
   let updatedBody = issueBody;
   const footnotes: string[] = [];
   const orphanRefs: string[] = [];
   // Sort relevant issues by similarity in ascending order
   relevantIssues.sort((a, b) => parseFloat(a.similarity) - parseFloat(b.similarity));
   relevantIssues.forEach((issue, index) => {
-    const footnoteIndex = highestFootnoteIndex + index + 1; // Continue numbering from the highest existing footnote number
-    const footnoteRef = `[^0${footnoteIndex}^]`;
+    const footnoteRef = buildDuplicateFootnoteRef(index + 1);
     const modifiedUrl = issue.node.url.replace("https://github.com", "https://www.github.com");
     const { sentence } = issue.mostSimilarSentence;
     // Insert footnote reference in the body
@@ -262,7 +257,7 @@ async function handleMatchIssuesComment(
     return;
   }
   // Find existing footnotes in the body
-  const footnoteRegex = /\[\^(\d+)\^\]/g;
+  const footnoteRegex = /\[\^[^\]]+\^\]/g;
   const existingFootnotes = issueBody.match(footnoteRegex) || [];
   // Find the index with respect to the issue body string where the footnotes start if they exist
   const footnoteIndex = existingFootnotes[0] ? issueBody.indexOf(existingFootnotes[0]) : issueBody.length;
@@ -401,7 +396,6 @@ export async function cleanContent(context: Context, content: string): Promise<s
  * @returns True if a duplicate footnote exists, false otherwise
  */
 export function checkIfDuplicateFootNoteExists(content: string): boolean {
-  const footnoteDefRegex = /\[\^(\d+)\^\]: ⚠ \d+% possible duplicate - [^\n]+(\n|$)/g;
-  const footnotes = content.match(footnoteDefRegex);
+  const footnotes = content.match(DUPLICATE_FOOTNOTE_DEF_REGEX);
   return !!footnotes;
 }

@@ -60,7 +60,7 @@ export async function commandHandler(context: Context<"issue_comment.created">) 
       const commentRegex = /#issuecomment-(\d+)$/;
       const match = commentUrl.match(commentRegex);
       if (!match) {
-        throw logger.error("Invalid comment URL");
+        throw context.logger.info("Invalid comment URL");
       }
       commentId = match[1];
     }
@@ -84,17 +84,17 @@ export async function userAnnotate(context: Context<"issue_comment.created">) {
         scope = splitComment[2];
 
         if (scope !== "global" && scope !== "org" && scope !== "repo") {
-          throw logger.error("Invalid scope");
+          throw context.logger.info("Invalid scope");
         }
 
         const commentRegex = /#issuecomment-(\d+)$/;
         const match = commentUrl.match(commentRegex);
         if (!match) {
-          throw logger.error("Invalid comment URL");
+          throw context.logger.info("Invalid comment URL");
         }
         commentId = match[1];
       } else {
-        throw logger.error("Invalid parameters");
+        throw context.logger.info("Invalid parameters");
       }
     }
     await annotate(context, commentId, scope);

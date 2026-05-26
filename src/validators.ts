@@ -1,6 +1,7 @@
 import * as v from "valibot";
+import { GITHUB_ISSUE_OR_PULL_URL_REGEX } from "./helpers/github";
 
-export const urlSchema = v.pipe(v.string(), v.url(), v.regex(/https:\/\/github\.com\/[^/]+\/[^/]+\/(issues|pull)\/\d+$/));
+export const urlSchema = v.pipe(v.string(), v.url(), v.regex(GITHUB_ISSUE_OR_PULL_URL_REGEX, "Expected a GitHub issue or pull request URL."));
 
 export const querySchema = v.object({
   issueUrls: v.union([v.array(urlSchema), urlSchema]),
