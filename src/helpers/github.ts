@@ -1,9 +1,5 @@
 export const GITHUB_ISSUE_OR_PULL_URL_REGEX = /^https:\/\/(?:www\.)?github\.com\/([^/]+)\/([^/]+)\/(?:issues|pull)\/(\d+)\/?(?:[?#].*)?$/i;
 
-export function isGitHubIssueOrPullUrl(url: string): boolean {
-  return GITHUB_ISSUE_OR_PULL_URL_REGEX.test(url.trim());
-}
-
 export function parseGitHubUrl(url: string) {
   const match = url.trim().match(GITHUB_ISSUE_OR_PULL_URL_REGEX);
   if (!match) {

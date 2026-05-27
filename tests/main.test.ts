@@ -284,6 +284,78 @@ describe("Plugin tests", () => {
     expect(issue.body).toContain(`- [${STRINGS.SIMILAR_ISSUE}](${STRINGS.ISSUE_URL})`);
   });
 
+  it("inserts caution alerts before footnote definitions instead of inline references", async () => {
+    const [matchThresholdIssue1, matchThresholdIssue2] = fetchSimilarIssues("match_threshold_95");
+    const { context } = createContextIssues(matchThresholdIssue1.issue_body, "match-footnote-1", 3, matchThresholdIssue1.title);
+    context.eventName = ISSUES_EDITED_EVENT_NAME;
+    context.adapters.supabase.issue.findSimilarIssues = mock().mockResolvedValue([]);
+    context.adapters.supabase.issue.createIssue = mock(async () => {
+      createIssue(
+        matchThresholdIssue1.issue_body,
+        "match-footnote-1",
+        matchThresholdIssue1.title,
+        3,
+        { login: "test", id: 1 },
+        "open",
+        null,
+        STRINGS.TEST_REPO,
+        STRINGS.USER_1
+      );
+    });
+    await runPlugin(context);
+
+    const bodyWithFootnote = `${matchThresholdIssue2.issue_body}\n\nThis references an existing note[^existing-note^].\n\n[^existing-note^]: Existing note`;
+    const { context: context2 } = createContextIssues(bodyWithFootnote, "match-footnote-2", 4, matchThresholdIssue2.title);
+    context2.eventName = ISSUES_EDITED_EVENT_NAME;
+    context2.adapters.supabase.issue.findSimilarIssues = mock().mockResolvedValue([
+      { issue_id: "match-footnote-1", similarity: 0.96 },
+    ] as unknown as IssueSimilaritySearchResult[]);
+    context2.octokit.graphql = mock().mockResolvedValue({
+      node: {
+        title: STRINGS.SIMILAR_ISSUE,
+        url: STRINGS.ISSUE_URL,
+        number: 3,
+        lastEditedAt: "2020-01-12T17:52:02Z",
+        body: matchThresholdIssue1.issue_body,
+        repository: {
+          name: STRINGS.TEST_REPO,
+          owner: {
+            login: STRINGS.USER_1,
+          },
+        },
+      },
+    }) as unknown as typeof context2.octokit.graphql;
+
+    context2.adapters.supabase.issue.createIssue = mock(async () => {
+      createIssue(bodyWithFootnote, "match-footnote-2", matchThresholdIssue2.title, 4, { login: "test", id: 1 }, "open", null, STRINGS.TEST_REPO, STRINGS.USER_1);
+    });
+    context2.octokit.rest.issues.update = mock(
+      async (params: { owner: string; repo: string; issue_number: number; body?: string; state?: string; state_reason?: string }) => {
+        db.issue.update({
+          where: {
+            number: { equals: params.issue_number },
+          },
+          data: {
+            ...(params.body && { body: params.body }),
+            ...(params.state && { state: params.state }),
+            ...(params.state_reason && { state_reason: params.state_reason }),
+          },
+        });
+      }
+    ) as unknown as typeof octokit.rest.issues.update;
+
+    await runPlugin(context2);
+
+    const issue = db.issue.findFirst({ where: { number: { equals: 4 } } }) as unknown as Context["payload"]["issue"];
+    const inlineReferenceIndex = issue.body.indexOf("[^existing-note^].");
+    const cautionIndex = issue.body.indexOf(">[!CAUTION]");
+    const definitionIndex = issue.body.indexOf("[^existing-note^]: Existing note");
+
+    expect(inlineReferenceIndex).toBeGreaterThan(-1);
+    expect(cautionIndex).toBeGreaterThan(inlineReferenceIndex);
+    expect(cautionIndex).toBeLessThan(definitionIndex);
+  });
+
   it("When issue matching is triggered, it should suggest contributors based on similarity", async () => {
     const [taskCompleteIssue] = fetchSimilarIssues("task_complete");
     const { context } = createContextIssues(taskCompleteIssue.issue_body, "task_complete", 3, taskCompleteIssue.title);

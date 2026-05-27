@@ -50,6 +50,10 @@ function parseNonNegativeInt(value: string | undefined, fallback: number): numbe
   return parsed;
 }
 
+/**
+ * Parses delay values from plain millisecond numbers or duration strings such as "10ms", "5s", "2m", "1h", and "1d".
+ * Falls back when the value is invalid, negative, or not finite.
+ */
 function parseDelayMs(value: string | undefined, fallback: number): number {
   if (value === undefined) {
     return fallback;
